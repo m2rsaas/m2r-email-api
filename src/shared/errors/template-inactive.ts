@@ -1,4 +1,4 @@
-import { BaseError } from './base-error';
+import { BaseError } from './base-error.js';
 
 export class TemplateInactiveError extends BaseError {
   constructor(public readonly templateId: string, public readonly status: string) {
