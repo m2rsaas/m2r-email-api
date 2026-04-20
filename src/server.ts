@@ -1,4 +1,4 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyBaseLogger } from 'fastify';
 import cors from '@fastify/cors';
 import metrics from 'fastify-metrics';
 import { healthRoutes } from './routes/health.js';
@@ -19,8 +19,7 @@ export async function createServer(container: Container): Promise<FastifyInstanc
   const logger = container.resolve('logger');
 
   const app = Fastify({
-    // Pino e compativel com o formato aceito pelo `logger` do Fastify.
-    logger,
+    loggerInstance: logger as unknown as FastifyBaseLogger,
     bodyLimit: 512 * 1024,
   });
 
