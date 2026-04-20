@@ -1,0 +1,45 @@
+{
+  "name": "m2r-email-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API de envio de emails da plataforma M2RIA SaaS (imediato e agendado, multi-provider).",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@fastify/basic-auth": "^6.2.0",
+    "@fastify/cors": "^11.2.0",
+    "@fastify/jwt": "^9.0.0",
+    "@fastify/swagger": "^9.7.0",
+    "@fastify/swagger-ui": "^5.2.5",
+    "@m2rsaas/contracts": "^0.2.3",
+    "@m2rsaas/crypto": "^0.1.1",
+    "@sendgrid/mail": "^8.1.3",
+    "amqplib": "^0.10.4",
+    "awilix": "^11.0.0",
+    "cassandra-driver": "^4.7.2",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.8.4",
+    "fastify-metrics": "^13.2.0",
+    "handlebars": "^4.7.8",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.9.14",
+    "pino": "^9.3.2",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.12",
+    "@types/nodemailer": "^6.4.15",
+    "@types/uuid": "^9.0.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4",
+    "vitest": "^1.6.0"
+  }
+}
