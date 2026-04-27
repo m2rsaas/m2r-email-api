@@ -15,7 +15,7 @@ const envSchema = z.object({
   SCYLLA_USERNAME: z.string().optional(),
   SCYLLA_PASSWORD: z.string().optional(),
 
-  REDIS_HOST: z.string(),
+  REDIS_HOSTS: z.string(),
   REDIS_PORT: z.coerce.number().int().positive().default(6379),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_DB: z.coerce.number().int().nonnegative().default(0),
@@ -71,7 +71,7 @@ export function loadConfig() {
       password: e.SCYLLA_PASSWORD,
     },
     redis: {
-      host: e.REDIS_HOST,
+      host: e.REDIS_HOSTS.split(',')[0]?.trim() ?? 'localhost',
       port: e.REDIS_PORT,
       password: e.REDIS_PASSWORD,
       db: e.REDIS_DB,
