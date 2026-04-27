@@ -3,4 +3,12 @@ dist/
 *.js
 *.d.ts
 *.js.map
+
+# Padrao .env M2RIA (skill padrao-env)
+
+# Padrao .env M2RIA (skill padrao-env)
+
+# Padrao .env M2RIA (skill padrao-env)
 .env
+.env.qa
+!.env.example
