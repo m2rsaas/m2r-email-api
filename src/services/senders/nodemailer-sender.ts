@@ -20,11 +20,12 @@ export class NodemailerSender implements IEmailSender {
 
   async send(params: SendParams, cfg: unknown): Promise<SendResult> {
     const config = cfg as NodemailerConfig;
+    const hasAuth = Boolean(config.user && config.pass);
     const transporter = this.factory({
       host: config.host,
       port: config.port,
       secure: config.secure,
-      auth: { user: config.user, pass: config.pass },
+      ...(hasAuth ? { auth: { user: config.user, pass: config.pass } } : {}),
       connectionTimeout: params.timeoutMs,
       greetingTimeout: params.timeoutMs,
       socketTimeout: params.timeoutMs,

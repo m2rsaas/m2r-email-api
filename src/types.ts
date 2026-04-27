@@ -1,22 +1,13 @@
-import { z } from 'zod';
+import { sendEmailPayloadSchema, type SendEmailPayload } from '@m2rsaas/contracts';
 
-export const SendEmailPayloadSchema = z.object({
-  scope: z.enum(['GPM', 'TENANT']),
-  tenantCode: z.string().optional(),
-  templateId: z.string().uuid(),
-  data: z.record(z.unknown()).default({}),
-  subjectOverride: z.string().nullable().optional(),
-  to: z.array(z.string().email()).min(1),
-  cc: z.array(z.string().email()).optional().default([]),
-  bcc: z.array(z.string().email()).optional().default([]),
-  scheduledAt: z.string().datetime({ offset: true }).nullable().optional(),
-  correlationId: z.string().optional(),
-}).refine(
-  (d) => d.scope === 'GPM' || !!d.tenantCode,
-  { message: 'tenantCode required when scope=TENANT', path: ['tenantCode'] },
-);
-
-export type SendEmailPayload = z.infer<typeof SendEmailPayloadSchema>;
+/**
+ * Schema do payload AMQP consumido pelo `send-consumer`.
+ *
+ * Re-exportado do contrato canonico `@m2rsaas/contracts` para preservar os
+ * imports existentes do consumer/services (`SendEmailPayloadSchema`).
+ */
+export const SendEmailPayloadSchema = sendEmailPayloadSchema;
+export type { SendEmailPayload };
 
 export type JobStatus = 'SCHEDULED' | 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED' | 'RETRYING';
 
