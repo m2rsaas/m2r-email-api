@@ -146,8 +146,18 @@ export function createAppContainer(config: AppConfig): Container {
 
     senderFactory: asFunction(() => {
       const f = new SenderFactory();
-      f.register(new NodemailerSender());
-      f.register(new TwilioSendGridSender());
+      // Senders canonicos
+      f.register(new NodemailerSender()); // code: SMTP_GENERIC
+      f.register(new TwilioSendGridSender()); // code: SENDGRID
+      // Aliases SMTP — todos compartilham o mesmo protocolo (NodemailerSender),
+      // diferenciando apenas pelas credenciais armazenadas em `config` da
+      // integracao. Mantem alinhamento com o catalogo do painel GPM.
+      f.registerAlias('GENERIC', 'SMTP_GENERIC');
+      f.registerAlias('GMAIL', 'SMTP_GENERIC');
+      f.registerAlias('HOSTINGER', 'SMTP_GENERIC');
+      f.registerAlias('HOSTGATOR', 'SMTP_GENERIC');
+      // Alias SendGrid — frontend grava como TWILIO.
+      f.registerAlias('TWILIO', 'SENDGRID');
       return f;
     }).singleton(),
 
