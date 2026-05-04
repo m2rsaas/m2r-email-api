@@ -2,12 +2,29 @@ import nodemailer, { type Transporter } from 'nodemailer';
 import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js';
 import type { IEmailSender, SendParams, SendResult } from './email-sender.js';
 
+/**
+ * Configuracao canonica do sender SMTP.
+ *
+ * IMPORTANTE: o campo da senha aceita dois nomes para evitar mismatch entre
+ * quem cifra (GPM grava `password` em `gpm_integrations.config`) e quem
+ * decifra/consome aqui. `password` e o nome canonico usado em todo o
+ * ecossistema (GPM frontend/backend, painel de Integracoes, validacao,
+ * `encrypted_fields`); `pass` permanece aceito como alias retroativo para
+ * nao quebrar testes/integracoes legadas.
+ *
+ * Sem essa tolerancia, o transporter sobe SEM `auth`, o relay rejeita o IP
+ * de origem e o servidor SMTP responde `554 5.7.1 ... Access denied` (ja
+ * observado em QA contra Hostinger).
+ */
 export interface NodemailerConfig {
   host: string;
   port: number;
   secure: boolean;
   user: string;
-  pass: string;
+  /** Nome canonico (gravado pelo GPM em `gpm_integrations.config`). */
+  password?: string;
+  /** Alias retroativo (testes legados / configs antigas). */
+  pass?: string;
   fromEmail: string;
   fromName?: string;
 }
@@ -20,12 +37,14 @@ export class NodemailerSender implements IEmailSender {
 
   async send(params: SendParams, cfg: unknown): Promise<SendResult> {
     const config = cfg as NodemailerConfig;
-    const hasAuth = Boolean(config.user && config.pass);
+    // Aceita `password` (canonico) e `pass` (alias). Ver doc da interface.
+    const pass = config.password ?? config.pass;
+    const hasAuth = Boolean(config.user && pass);
     const transporter = this.factory({
       host: config.host,
       port: config.port,
       secure: config.secure,
-      ...(hasAuth ? { auth: { user: config.user, pass: config.pass } } : {}),
+      ...(hasAuth ? { auth: { user: config.user, pass: pass! } } : {}),
       connectionTimeout: params.timeoutMs,
       greetingTimeout: params.timeoutMs,
       socketTimeout: params.timeoutMs,

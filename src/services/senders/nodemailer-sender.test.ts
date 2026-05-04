@@ -61,4 +61,47 @@ describe('NodemailerSender', () => {
     );
     expect(res.classification).toBe('soft');
   });
+
+  // Regressao: o GPM grava a senha SMTP no `gpm_integrations.config` sob a
+  // chave `password` (e nao `pass`). Antes do fix, o transporter subia sem
+  // `auth` quando recebia o config decifrado, causando `554 Access denied`
+  // no relay (visto em QA contra Hostinger).
+  it('passes auth when config uses canonical `password` field', async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: '<x>', response: '250 OK' });
+    const factory = vi.fn().mockReturnValue({ sendMail });
+    const sender = new NodemailerSender(factory as any);
+    const cfgCanonical = {
+      host: 'smtp.example.com',
+      port: 587,
+      secure: false,
+      user: 'u',
+      password: 'p', // <- canonico, gravado pelo GPM
+      fromEmail: 'no-reply@example.com',
+    };
+    await sender.send(
+      { to: ['x@y'], cc: [], bcc: [], subject: 's', body: 'b', timeoutMs: 5000 },
+      cfgCanonical,
+    );
+    const opts = factory.mock.calls[0][0];
+    expect(opts.auth).toEqual({ user: 'u', pass: 'p' });
+  });
+
+  it('omits auth when neither password nor pass is provided', async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: '<x>', response: '250 OK' });
+    const factory = vi.fn().mockReturnValue({ sendMail });
+    const sender = new NodemailerSender(factory as any);
+    const cfgNoAuth = {
+      host: 'smtp.example.com',
+      port: 25,
+      secure: false,
+      user: '',
+      fromEmail: 'no-reply@example.com',
+    };
+    await sender.send(
+      { to: ['x@y'], cc: [], bcc: [], subject: 's', body: 'b', timeoutMs: 5000 },
+      cfgNoAuth,
+    );
+    const opts = factory.mock.calls[0][0];
+    expect(opts.auth).toBeUndefined();
+  });
 });
