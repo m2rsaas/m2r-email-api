@@ -73,25 +73,34 @@ export class Scheduler {
     this.running = true;
     try {
       // Escopo GPM
+      // Inclui QUEUED como safety net: jobs persistidos (ex.: via REST ou
+      // pelo consumer AMQP) que por algum motivo nao tenham sido despachados
+      // imediatamente sao processados aqui. O `dispatch()` adquire lock via
+      // LWT (QUEUED -> SENDING), entao colisao com consumer e segura.
       const gpmIds = await this.jobRepo.listByStatus(
         'GPM',
         null,
-        ['SCHEDULED', 'RETRYING'],
+        ['SCHEDULED', 'RETRYING', 'QUEUED'],
         new Date(),
         this.options.batch,
       );
       for (const id of gpmIds) {
-        const promoted =
-          (await this.jobRepo.updateStatusIf('GPM', null, id, 'SCHEDULED', 'QUEUED')) ||
-          (await this.jobRepo.updateStatusIf('GPM', null, id, 'RETRYING', 'QUEUED'));
-        if (promoted) {
-          this.dispatch.dispatch('GPM', null, id).catch((err) =>
-            this.logger.error(
-              { id, err: (err as Error).message },
-              'Dispatch failed',
-            ),
-          );
-        }
+        // Tenta promover (SCHEDULED|RETRYING -> QUEUED). Se o job ja estiver
+        // em QUEUED, o promote retorna false mas seguimos pro dispatch — o
+        // proprio dispatch adquire lock LWT (QUEUED -> SENDING), entao
+        // colisao com consumer AMQP e segura (apenas um vence o LWT).
+        await this.jobRepo
+          .updateStatusIf('GPM', null, id, 'SCHEDULED', 'QUEUED')
+          .catch(() => false);
+        await this.jobRepo
+          .updateStatusIf('GPM', null, id, 'RETRYING', 'QUEUED')
+          .catch(() => false);
+        this.dispatch.dispatch('GPM', null, id).catch((err) =>
+          this.logger.error(
+            { id, err: (err as Error).message },
+            'Dispatch failed',
+          ),
+        );
       }
       // Escopo TENANT — fora do MVP (v2). Ver JSDoc da classe.
     } finally {

@@ -33,9 +33,33 @@ export const createEmailsRoutes =
           .send({ error: 'Invalid payload', details: parsed.error.flatten() });
         return;
       }
-      const jobId = await dispatch.enqueue(parsed.data);
+      const { dispatchId, jobIds } = await dispatch.enqueue(parsed.data);
+      // Se nao e agendado, processa cada job imediatamente (mesmo pipeline
+      // do consumer AMQP). Sem esse dispatch, jobs publicados via REST
+      // ficariam eternamente em QUEUED, pois o evento `email.job.queued`
+      // publicado pelo enqueue NAO casa com o binding do consumer
+      // (`email.send.#`); ele e um evento informativo, nao um trigger de
+      // processamento.
+      if (!parsed.data.scheduledAt) {
+        for (const jobId of jobIds) {
+          try {
+            await dispatch.dispatch(
+              parsed.data.scope,
+              parsed.data.tenantCode ?? null,
+              jobId,
+            );
+          } catch (jobErr) {
+            req.log.error(
+              { jobId, err: (jobErr as Error).message },
+              'Dispatch falhou para um job individual; demais continuam',
+            );
+          }
+        }
+      }
       reply.status(202).send({
-        jobId,
+        jobId: jobIds[0] ?? null,
+        jobIds,
+        dispatchId,
         status: parsed.data.scheduledAt ? 'SCHEDULED' : 'QUEUED',
       });
     });
