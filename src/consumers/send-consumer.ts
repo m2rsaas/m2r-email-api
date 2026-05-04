@@ -31,14 +31,24 @@ export async function startSendConsumer(
     }
 
     try {
-      const jobId = await dispatch.enqueue(parsed.data);
-      // Se nao foi agendado (SCHEDULED), processa imediatamente.
+      const { jobIds } = await dispatch.enqueue(parsed.data);
+      // Se nao foi agendado (SCHEDULED), processa cada job (1 por destinatario)
+      // imediatamente. Falha em um nao impede os demais de continuarem.
       if (!parsed.data.scheduledAt) {
-        await dispatch.dispatch(
-          parsed.data.scope,
-          parsed.data.tenantCode ?? null,
-          jobId,
-        );
+        for (const jobId of jobIds) {
+          try {
+            await dispatch.dispatch(
+              parsed.data.scope,
+              parsed.data.tenantCode ?? null,
+              jobId,
+            );
+          } catch (jobErr) {
+            logger.error(
+              { jobId, err: (jobErr as Error).message },
+              'Dispatch falhou para um job individual; demais continuam',
+            );
+          }
+        }
       }
       return { ack: true };
     } catch (err) {

@@ -13,6 +13,7 @@ export type JobStatus = 'SCHEDULED' | 'QUEUED' | 'SENDING' | 'SENT' | 'FAILED' |
 
 export interface EmailJob {
   id: string;
+  dispatchId: string | null;
   scope: 'GPM' | 'TENANT';
   tenantCode: string | null;
   templateId: string;

@@ -49,40 +49,64 @@ export class EmailDispatchService {
   constructor(private readonly deps: DispatchDeps) {}
 
   /**
-   * Enqueue: persiste job e decide QUEUED vs SCHEDULED. Retorna o jobId.
+   * Enqueue: persiste 1 job por destinatario (todos com o mesmo dispatchId)
+   * e decide QUEUED vs SCHEDULED para cada um. Retorna o dispatchId mais a
+   * lista de jobIds criados.
+   *
+   * Cada item de payload.to / .cc / .bcc vira um job independente com
+   * recipients_to/cc/bcc = [unico endereco]. Falha de SMTP em um destinatario
+   * nao afeta os demais; cada um tem retry isolado.
    */
-  async enqueue(payload: SendEmailPayload): Promise<string> {
-    const jobId = randomUUID();
+  async enqueue(payload: SendEmailPayload): Promise<{ dispatchId: string; jobIds: string[] }> {
+    const dispatchId = randomUUID();
     const now = new Date();
     const scheduledAt = payload.scheduledAt ? new Date(payload.scheduledAt) : null;
     const isScheduled = scheduledAt !== null && scheduledAt.getTime() > now.getTime();
     const status = isScheduled ? 'SCHEDULED' : 'QUEUED';
     const nextFireAt = isScheduled ? scheduledAt : now;
 
-    await this.deps.jobRepo.insert({
-      id: jobId,
-      scope: payload.scope,
-      tenantCode: payload.tenantCode ?? null,
-      templateId: payload.templateId,
-      dataJson: JSON.stringify(payload.data ?? {}),
-      subjectOverride: payload.subjectOverride ?? null,
-      recipientsTo: payload.to,
-      recipientsCc: payload.cc ?? [],
-      recipientsBcc: payload.bcc ?? [],
-      scheduledAt,
-      nextFireAt,
-      status,
-      correlationId: payload.correlationId ?? null,
-    });
+    const recipients: Array<{ address: string; kind: 'TO' | 'CC' | 'BCC' }> = [
+      ...payload.to.map((address) => ({ address, kind: 'TO' as const })),
+      ...(payload.cc ?? []).map((address) => ({ address, kind: 'CC' as const })),
+      ...(payload.bcc ?? []).map((address) => ({ address, kind: 'BCC' as const })),
+    ];
 
-    if (!isScheduled) {
-      await this.publishJobEvent('email.job.queued', jobId, {
+    if (recipients.length === 0) {
+      throw new Error('SendEmailPayload sem destinatarios (to/cc/bcc vazios)');
+    }
+
+    const jobIds: string[] = [];
+    for (const recipient of recipients) {
+      const jobId = randomUUID();
+      await this.deps.jobRepo.insert({
+        id: jobId,
+        dispatchId,
         scope: payload.scope,
         tenantCode: payload.tenantCode ?? null,
         templateId: payload.templateId,
+        dataJson: JSON.stringify(payload.data ?? {}),
+        subjectOverride: payload.subjectOverride ?? null,
+        recipientsTo: recipient.kind === 'TO' ? [recipient.address] : [],
+        recipientsCc: recipient.kind === 'CC' ? [recipient.address] : [],
+        recipientsBcc: recipient.kind === 'BCC' ? [recipient.address] : [],
+        scheduledAt,
+        nextFireAt,
+        status,
+        correlationId: payload.correlationId ?? null,
       });
+      jobIds.push(jobId);
+
+      if (!isScheduled) {
+        await this.publishJobEvent('email.job.queued', jobId, {
+          scope: payload.scope,
+          tenantCode: payload.tenantCode ?? null,
+          templateId: payload.templateId,
+          dispatchId,
+        });
+      }
     }
-    return jobId;
+
+    return { dispatchId, jobIds };
   }
 
   /**
