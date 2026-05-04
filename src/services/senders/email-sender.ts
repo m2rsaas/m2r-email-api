@@ -3,7 +3,14 @@ export interface SendParams {
   cc: string[];
   bcc: string[];
   subject: string;
+  /** Corpo HTML (renderizado via Handlebars). */
   body: string;
+  /**
+   * Versao `text/plain` opcional. Quando ausente, o sender (SMTP) deve
+   * derivar automaticamente a partir de `body` para garantir o envio em
+   * `multipart/alternative` e nao ser penalizado pelo SpamAssassin.
+   */
+  text?: string;
   timeoutMs: number;
 }
 

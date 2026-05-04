@@ -3,6 +3,68 @@ import type SMTPTransport from 'nodemailer/lib/smtp-transport/index.js';
 import type { IEmailSender, SendParams, SendResult } from './email-sender.js';
 
 /**
+ * Deriva uma versao `text/plain` minimamente legivel a partir de um HTML.
+ *
+ * Por que existe: SpamAssassin penaliza emails enviados como `text/html`
+ * puro (regra MIME_HTML_ONLY, +0.1) e tambem mensagens HTML sem o envelope
+ * `<html>...</html>` (HTML_MIME_NO_HTML_TAG, +0.635). Resolver o segundo
+ * passa por usar templates com documento HTML completo. Resolver o primeiro
+ * passa por enviar `multipart/alternative`, ou seja, tambem uma versao
+ * `text/plain` ao lado do HTML.
+ *
+ * Implementacao deliberadamente minimalista (sem nova dependencia):
+ *   1. Remove blocos `<script>` / `<style>` (incluindo conteudo).
+ *   2. Converte `<br>` e `</p>` em quebras de linha (preserva paragrafacao).
+ *   3. Remove qualquer outra tag.
+ *   4. Decodifica as entidades HTML mais comuns.
+ *   5. Colapsa espacos em branco / linhas vazias excessivas.
+ *
+ * Nao tenta lidar com tabelas/listas/links sofisticados — para emails
+ * transacionais simples (boas-vindas, recuperacao de senha, sandbox SMTP)
+ * a saida e suficiente para o filtro anti-spam reconhecer a parte texto.
+ * Se o template ficar realmente complexo, o caller pode passar `text`
+ * explicitamente (campo opcional em `SendParams`) que sera respeitado.
+ */
+export function htmlToPlainText(html: string): string {
+  if (!html) return '';
+  const withoutScripts = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+  const withBreaks = withoutScripts
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/\s*p\s*>/gi, '\n\n')
+    .replace(/<\s*\/\s*div\s*>/gi, '\n')
+    .replace(/<\s*\/\s*li\s*>/gi, '\n')
+    .replace(/<\s*\/\s*h[1-6]\s*>/gi, '\n\n');
+  const withoutTags = withBreaks.replace(/<[^>]+>/g, '');
+  const decoded = withoutTags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    // Decode entidades numericas (&#123; e &#x7B;) — conservador, ignora invalido.
+    .replace(/&#(\d+);/g, (_m, n: string) => {
+      const code = Number.parseInt(n, 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_m, n: string) => {
+      const code = Number.parseInt(n, 16);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+    });
+  // Normaliza espacos: tabs/CR -> espaco simples; colapsa runs de espaco;
+  // reduz 3+ quebras consecutivas a 2; trim global.
+  return decoded
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/[ \t]*\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
  * Configuracao canonica do sender SMTP.
  *
  * IMPORTANTE: o campo da senha aceita dois nomes para evitar mismatch entre
@@ -50,6 +112,13 @@ export class NodemailerSender implements IEmailSender {
       socketTimeout: params.timeoutMs,
     });
 
+    // Garante envio em multipart/alternative: se o caller nao passou `text`,
+    // derivamos uma versao plain a partir do HTML. Reduz penalidade do
+    // SpamAssassin (regra MIME_HTML_ONLY) e melhora compatibilidade com
+    // clientes de email que preferem texto puro.
+    const plainText =
+      params.text && params.text.trim() ? params.text : htmlToPlainText(params.body);
+
     try {
       const info = await transporter.sendMail({
         from: config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail,
@@ -58,6 +127,7 @@ export class NodemailerSender implements IEmailSender {
         bcc: params.bcc,
         subject: params.subject,
         html: params.body,
+        text: plainText,
       });
       return {
         success: true,

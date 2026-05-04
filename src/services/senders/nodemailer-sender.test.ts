@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { NodemailerSender } from './nodemailer-sender.js';
+import { NodemailerSender, htmlToPlainText } from './nodemailer-sender.js';
 
 describe('NodemailerSender', () => {
   const config = {
@@ -103,5 +103,93 @@ describe('NodemailerSender', () => {
     );
     const opts = factory.mock.calls[0][0];
     expect(opts.auth).toBeUndefined();
+  });
+
+  // Regressao SpamAssassin (MIME_HTML_ONLY +0.1): todo envio precisa ser
+  // multipart/alternative. Se o caller passou apenas `body` (HTML), o sender
+  // deve derivar `text` automaticamente.
+  it('derives text/plain from html body when caller did not provide text', async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: '<x>', response: '250 OK' });
+    const factory = vi.fn().mockReturnValue({ sendMail });
+    const sender = new NodemailerSender(factory as any);
+    const html =
+      '<!DOCTYPE html><html><head><title>Hi</title></head><body><p>Ola, <b>mundo</b>!</p></body></html>';
+    await sender.send(
+      { to: ['x@y'], cc: [], bcc: [], subject: 's', body: html, timeoutMs: 5000 },
+      config,
+    );
+    const args = sendMail.mock.calls[0][0];
+    expect(args.html).toBe(html);
+    expect(typeof args.text).toBe('string');
+    expect(args.text).toContain('Ola,');
+    expect(args.text).toContain('mundo');
+    // E nao deve sobrar tag HTML
+    expect(args.text).not.toMatch(/<[^>]+>/);
+  });
+
+  it('respects caller-provided text and does not override it', async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: '<x>', response: '250 OK' });
+    const factory = vi.fn().mockReturnValue({ sendMail });
+    const sender = new NodemailerSender(factory as any);
+    await sender.send(
+      {
+        to: ['x@y'],
+        cc: [],
+        bcc: [],
+        subject: 's',
+        body: '<p>HTML</p>',
+        text: 'Versao plain explicita',
+        timeoutMs: 5000,
+      },
+      config,
+    );
+    const args = sendMail.mock.calls[0][0];
+    expect(args.text).toBe('Versao plain explicita');
+  });
+});
+
+describe('htmlToPlainText', () => {
+  it('strips tags and decodes common entities', () => {
+    const out = htmlToPlainText(
+      '<p>Hello&nbsp;<b>world</b> &amp; friends &lt;3 &quot;test&quot; &#39;ok&#39;</p>',
+    );
+    expect(out).toContain('Hello');
+    expect(out).toContain('world');
+    expect(out).toContain('& friends');
+    expect(out).toContain('<3');
+    expect(out).toContain('"test"');
+    expect(out).toContain("'ok'");
+    expect(out).not.toMatch(/<[^>]+>/);
+  });
+
+  it('removes script and style blocks entirely (including content)', () => {
+    const out = htmlToPlainText(
+      '<style>body{color:red}</style><script>alert(1)</script><p>safe</p>',
+    );
+    expect(out).toContain('safe');
+    expect(out).not.toContain('alert');
+    expect(out).not.toContain('color:red');
+  });
+
+  it('converts <br> and </p> into line breaks', () => {
+    const out = htmlToPlainText('<p>linha1</p><p>linha2</p>linha3<br/>linha4');
+    expect(out.split('\n').length).toBeGreaterThanOrEqual(3);
+    expect(out).toContain('linha1');
+    expect(out).toContain('linha4');
+  });
+
+  it('handles empty input safely', () => {
+    expect(htmlToPlainText('')).toBe('');
+  });
+
+  it('decodes numeric entities', () => {
+    const out = htmlToPlainText('<p>caf&#233; &#x00E9;</p>');
+    expect(out).toContain('café');
+  });
+
+  it('collapses excessive whitespace and blank lines', () => {
+    const out = htmlToPlainText('<p>a</p>\n\n\n\n<p>b</p>');
+    // No maximo 2 quebras consecutivas
+    expect(out).not.toMatch(/\n{3,}/);
   });
 });
