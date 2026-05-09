@@ -62,7 +62,7 @@ describe('NodemailerSender', () => {
     expect(res.classification).toBe('soft');
   });
 
-  // Regressao: o GPM grava a senha SMTP no `gpm_integrations.config` sob a
+  // Regressao: o GPM grava a senha SMTP no `int_integrations.config` sob a
   // chave `password` (e nao `pass`). Antes do fix, o transporter subia sem
   // `auth` quando recebia o config decifrado, causando `554 Access denied`
   // no relay (visto em QA contra Hostinger).

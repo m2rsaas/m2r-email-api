@@ -19,8 +19,8 @@ export interface SendTemplateRow {
 /**
  * Acesso aos dados de templates de envio globais (GPM) e por tenant.
  *
- * - GPM: `gpm_m2rglobal.gpm_send_templates` (PK id)
- * - TENANT: `ks_{tenantCode}.int_send_templates` (PK id)
+ * - GPM: `gpm_m2rglobal.ntf_send_templates` (PK id)
+ * - TENANT: `ks_{tenantCode}.ntf_send_templates` (PK id)
  */
 export class SendTemplateRepository {
   constructor(private readonly client: Client) {}
@@ -31,7 +31,7 @@ export class SendTemplateRepository {
     templateId: string,
   ): Promise<SendTemplateRow | null> {
     const keyspace = this.keyspaceFor(scope, tenantCode);
-    const table = scope === 'GPM' ? 'gpm_send_templates' : 'int_send_templates';
+    const table = scope === 'GPM' ? 'ntf_send_templates' : 'ntf_send_templates';
     const query = `SELECT id, channel_type, type, name, subject, body, variables, status, integration_id FROM ${keyspace}.${table} WHERE id = ?`;
     const result = await this.client.execute(query, [templateId], { prepare: true });
     const row = result.first();

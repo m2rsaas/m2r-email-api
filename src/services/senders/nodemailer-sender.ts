@@ -68,7 +68,7 @@ export function htmlToPlainText(html: string): string {
  * Configuracao canonica do sender SMTP.
  *
  * IMPORTANTE: o campo da senha aceita dois nomes para evitar mismatch entre
- * quem cifra (GPM grava `password` em `gpm_integrations.config`) e quem
+ * quem cifra (GPM grava `password` em `int_integrations.config`) e quem
  * decifra/consome aqui. `password` e o nome canonico usado em todo o
  * ecossistema (GPM frontend/backend, painel de Integracoes, validacao,
  * `encrypted_fields`); `pass` permanece aceito como alias retroativo para
@@ -83,7 +83,7 @@ export interface NodemailerConfig {
   port: number;
   secure: boolean;
   user: string;
-  /** Nome canonico (gravado pelo GPM em `gpm_integrations.config`). */
+  /** Nome canonico (gravado pelo GPM em `int_integrations.config`). */
   password?: string;
   /** Alias retroativo (testes legados / configs antigas). */
   pass?: string;

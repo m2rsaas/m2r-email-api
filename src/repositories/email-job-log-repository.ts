@@ -21,8 +21,8 @@ export interface EmailJobLogEntry {
 /**
  * Acesso aos dados de logs de envio de email.
  *
- * - GPM: `gpm_m2rglobal.sys_email_job_logs`
- * - TENANT: `ks_{tenantCode}.int_email_job_logs`
+ * - GPM: `gpm_m2rglobal.ntf_email_job_logs`
+ * - TENANT: `ks_{tenantCode}.ntf_email_job_logs`
  *
  * PK: `email_job_id`, CK: `created_at DESC` — permite listar as tentativas
  * mais recentes primeiro para um job.
@@ -32,7 +32,7 @@ export class EmailJobLogRepository {
 
   async insert(input: InsertLogInput): Promise<void> {
     const keyspace = this.keyspaceFor(input.scope, input.tenantCode);
-    const table = input.scope === 'GPM' ? 'sys_email_job_logs' : 'int_email_job_logs';
+    const table = input.scope === 'GPM' ? 'ntf_email_job_logs' : 'ntf_email_job_logs';
     const now = new Date();
     const logId = types.Uuid.random();
 
@@ -61,7 +61,7 @@ export class EmailJobLogRepository {
     limit = 50,
   ): Promise<EmailJobLogEntry[]> {
     const keyspace = this.keyspaceFor(scope, tenantCode);
-    const table = scope === 'GPM' ? 'sys_email_job_logs' : 'int_email_job_logs';
+    const table = scope === 'GPM' ? 'ntf_email_job_logs' : 'ntf_email_job_logs';
     const result = await this.client.execute(
       `SELECT attempt, status, created_at, smtp_response, error
          FROM ${keyspace}.${table} WHERE email_job_id = ? LIMIT ?`,

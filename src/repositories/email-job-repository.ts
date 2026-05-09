@@ -28,8 +28,8 @@ interface TablesInfo {
 /**
  * Acesso aos dados de jobs de envio de email.
  *
- * - GPM: `gpm_m2rglobal.sys_email_jobs` (+ `_by_status`, `_by_dispatch`)
- * - TENANT: `ks_{tenantCode}.int_email_jobs` (+ `_by_status`, `_by_dispatch`)
+ * - GPM: `gpm_m2rglobal.ntf_email_jobs` (+ `_by_status`, `_by_dispatch`)
+ * - TENANT: `ks_{tenantCode}.ntf_email_jobs` (+ `_by_status`, `_by_dispatch`)
  *
  * A insercao escreve em 3 tabelas em batch para manter principal + lookups
  * consistentes. Para atualizacoes atomicas baseadas em estado atual, usa LWT
@@ -49,7 +49,7 @@ export class EmailJobRepository {
 
     const queries = [
       {
-        // sys_email_jobs / int_email_jobs com dispatch_id (introduzido pela
+        // ntf_email_jobs / ntf_email_jobs com dispatch_id (introduzido pela
         // migration 049/INT-014). attempts inicia em 0; sent_at/error nulos.
         query: `INSERT INTO ${keyspace}.${tableJobs}
           (id, dispatch_id, scope, tenant_code, template_id, data_json, subject_override,
@@ -94,7 +94,7 @@ export class EmailJobRepository {
       {
         // Lookup denormalizada por dispatch (painel admin: agrupar N jobs do
         // mesmo envio). Status inicial; nao e atualizado em updateStatusIf —
-        // o painel resolve via JOIN logico em sys_email_jobs.
+        // o painel resolve via JOIN logico em ntf_email_jobs.
         query: `INSERT INTO ${keyspace}.${tableByDispatch}
           (dispatch_id, id, recipient, recipient_kind, status, template_id, correlation_id, created_at, updated_at)
           VALUES (?,?,?,?,?,?,?,?,?)`,
@@ -210,17 +210,17 @@ export class EmailJobRepository {
     if (scope === 'GPM') {
       return {
         keyspace: 'gpm_m2rglobal',
-        tableJobs: 'sys_email_jobs',
-        tableByStatus: 'sys_email_jobs_by_status',
-        tableByDispatch: 'sys_email_jobs_by_dispatch',
+        tableJobs: 'ntf_email_jobs',
+        tableByStatus: 'ntf_email_jobs_by_status',
+        tableByDispatch: 'ntf_email_jobs_by_dispatch',
       };
     }
     if (!tenantCode) throw new Error('tenantCode required for TENANT scope');
     return {
       keyspace: `ks_${tenantCode}`,
-      tableJobs: 'int_email_jobs',
-      tableByStatus: 'int_email_jobs_by_status',
-      tableByDispatch: 'int_email_jobs_by_dispatch',
+      tableJobs: 'ntf_email_jobs',
+      tableByStatus: 'ntf_email_jobs_by_status',
+      tableByDispatch: 'ntf_email_jobs_by_dispatch',
     };
   }
 
@@ -251,7 +251,7 @@ export class EmailJobRepository {
 /**
  * Apos a explosao em N jobs no enqueue, cada job tem exatamente 1 endereco
  * em uma das listas. Esta funcao recupera esse endereco para denormalizar
- * em sys_email_jobs_by_dispatch.
+ * em ntf_email_jobs_by_dispatch.
  */
 function pickSingleRecipient(input: InsertJobInput): {
   address: string;

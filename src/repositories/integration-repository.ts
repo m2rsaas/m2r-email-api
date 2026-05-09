@@ -23,7 +23,7 @@ export interface IntegrationRow {
 /**
  * Acesso aos dados de integracoes globais (GPM) e por tenant.
  *
- * - GPM: `gpm_m2rglobal.gpm_integrations`
+ * - GPM: `gpm_m2rglobal.int_integrations`
  * - TENANT: `ks_{tenantCode}.int_integrations`
  */
 export class IntegrationRepository {
@@ -35,7 +35,7 @@ export class IntegrationRepository {
     integrationId: string,
   ): Promise<IntegrationRow | null> {
     const keyspace = this.keyspaceFor(scope, tenantCode);
-    const table = scope === 'GPM' ? 'gpm_integrations' : 'int_integrations';
+    const table = scope === 'GPM' ? 'int_integrations' : 'int_integrations';
     const query = `SELECT id, type, provider, config, status, encrypted_fields, key_version FROM ${keyspace}.${table} WHERE id = ?`;
     const result = await this.client.execute(query, [integrationId], { prepare: true });
     const row = result.first();
