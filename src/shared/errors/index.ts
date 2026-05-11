@@ -6,3 +6,4 @@ export * from './integration-inactive.js';
 export * from './decrypt-failed.js';
 export * from './send-hard-fail.js';
 export * from './send-soft-fail.js';
+export * from './no-default-template.js';
