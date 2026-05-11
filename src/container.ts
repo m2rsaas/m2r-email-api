@@ -19,6 +19,7 @@ import { SendTemplateRepository } from './repositories/send-template-repository.
 import { IntegrationRepository } from './repositories/integration-repository.js';
 
 import { TemplateRenderService } from './services/template-render-service.js';
+import { TemplateResolverService } from './services/template-resolver-service.js';
 import { IntegrationResolverService } from './services/integration-resolver-service.js';
 import { RetryPolicy } from './services/retry-policy.js';
 import { SenderFactory } from './services/senders/sender-factory.js';
@@ -49,6 +50,7 @@ export interface ContainerCradle {
   templateRepo: SendTemplateRepository;
   integrationRepo: IntegrationRepository;
   renderService: TemplateRenderService;
+  templateResolver: TemplateResolverService;
   integrationResolver: IntegrationResolverService;
   retryPolicy: RetryPolicy;
   senderFactory: SenderFactory;
@@ -132,6 +134,15 @@ export function createAppContainer(config: AppConfig): Container {
 
     renderService: asFunction(() => new TemplateRenderService({ compile })).singleton(),
 
+    templateResolver: asFunction(
+      ({ logger: log, config: cfg }: ContainerCradle) =>
+        new TemplateResolverService({
+          gpmBackendUrl: cfg.gpmBackend.url,
+          internalApiKey: cfg.internalAuth.apiKey,
+          logger: log,
+        }),
+    ).singleton(),
+
     retryPolicy: asFunction(() => new RetryPolicy()).singleton(),
 
     integrationResolver: asFunction(
@@ -168,6 +179,7 @@ export function createAppContainer(config: AppConfig): Container {
         templateRepo,
         integrationResolver,
         renderService,
+        templateResolver,
         senderFactory,
         retryPolicy,
         amqpPublisher,
@@ -180,6 +192,7 @@ export function createAppContainer(config: AppConfig): Container {
           templateRepo,
           integrationResolver,
           renderService,
+          templateResolver,
           senderFactory,
           retryPolicy,
           publisher: amqpPublisher,

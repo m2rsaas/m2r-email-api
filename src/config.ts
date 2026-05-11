@@ -41,6 +41,9 @@ const envSchema = z.object({
   SWAGGER_PASSWORD: z.string().default('change-me'),
 
   SENDER_DEFAULT_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+
+  GPM_BACKEND_URL: z.string().default('http://gpm-backend:3008'),
+  INTERNAL_API_KEY: z.string().default(''),
 });
 
 export type AppConfig = ReturnType<typeof loadConfig>;
@@ -103,6 +106,12 @@ export function loadConfig() {
     },
     sender: {
       defaultTimeoutMs: e.SENDER_DEFAULT_TIMEOUT_MS,
+    },
+    gpmBackend: {
+      url: e.GPM_BACKEND_URL,
+    },
+    internalAuth: {
+      apiKey: e.INTERNAL_API_KEY,
     },
   };
 }
