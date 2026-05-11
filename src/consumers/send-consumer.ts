@@ -2,6 +2,7 @@ import type { IAmqpConsumer } from '../shared/interfaces/amqp-consumer.js';
 import type { EmailDispatchService } from '../services/email-dispatch-service.js';
 import type { Logger } from '../lib/logger.js';
 import { SendEmailPayloadSchema } from '../types.js';
+import { NoDefaultTemplateError } from '../shared/errors/index.js';
 
 /**
  * Inicia o consumer da fila de envio de email.
@@ -52,6 +53,17 @@ export async function startSendConsumer(
       }
       return { ack: true };
     } catch (err) {
+      if (err instanceof NoDefaultTemplateError) {
+        logger.warn(
+          {
+            type: err.type,
+            channelType: err.channelType,
+            correlationId: parsed.data.correlationId,
+          },
+          'NO_DEFAULT_TEMPLATE — job descartado para DLX',
+        );
+        return { ack: false, requeue: false };
+      }
       logger.error(
         { err: (err as Error).message },
         'Dispatch failed; NACK to DLX',

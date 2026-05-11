@@ -5,6 +5,7 @@ import type { EmailJobLogRepository } from '../repositories/email-job-log-reposi
 import type { SendTemplateRepository } from '../repositories/send-template-repository.js';
 import type { IntegrationResolverService } from './integration-resolver-service.js';
 import type { TemplateRenderService } from './template-render-service.js';
+import type { TemplateResolverService } from './template-resolver-service.js';
 import type { SenderFactory } from './senders/sender-factory.js';
 import type { RetryPolicy } from './retry-policy.js';
 import type { IAmqpPublisher } from '../shared/interfaces/amqp-publisher.js';
@@ -20,6 +21,7 @@ export interface DispatchDeps {
   templateRepo: SendTemplateRepository;
   integrationResolver: IntegrationResolverService;
   renderService: TemplateRenderService;
+  templateResolver: TemplateResolverService;
   senderFactory: SenderFactory;
   retryPolicy: RetryPolicy;
   publisher: IAmqpPublisher;
@@ -59,6 +61,17 @@ export class EmailDispatchService {
    */
   async enqueue(payload: SendEmailPayload): Promise<{ dispatchId: string; jobIds: string[] }> {
     const dispatchId = randomUUID();
+    // Resolve templateId final. Se o payload trouxe templateId direto
+    // (caminho legado / sandbox), usa ele; caso contrário consulta o
+    // gpm-backend via TemplateResolverService.
+    const resolved = await this.deps.templateResolver.resolve({
+      scope: payload.scope,
+      tenantCode: payload.tenantCode ?? undefined,
+      templateId: payload.templateId ?? undefined,
+      type: payload.type,
+      channelType: payload.channelType ?? 'EMAIL',
+    });
+    const effectiveTemplateId = resolved.templateId;
     const now = new Date();
     const scheduledAt = payload.scheduledAt ? new Date(payload.scheduledAt) : null;
     const isScheduled = scheduledAt !== null && scheduledAt.getTime() > now.getTime();
@@ -83,7 +96,7 @@ export class EmailDispatchService {
         dispatchId,
         scope: payload.scope,
         tenantCode: payload.tenantCode ?? null,
-        templateId: payload.templateId,
+        templateId: effectiveTemplateId,
         dataJson: JSON.stringify(payload.data ?? {}),
         subjectOverride: payload.subjectOverride ?? null,
         recipientsTo: recipient.kind === 'TO' ? [recipient.address] : [],
@@ -100,7 +113,7 @@ export class EmailDispatchService {
         await this.publishJobEvent('email.job.queued', jobId, {
           scope: payload.scope,
           tenantCode: payload.tenantCode ?? null,
-          templateId: payload.templateId,
+          templateId: effectiveTemplateId,
           dispatchId,
         });
       }
