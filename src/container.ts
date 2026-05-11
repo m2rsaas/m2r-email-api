@@ -138,7 +138,7 @@ export function createAppContainer(config: AppConfig): Container {
       ({ logger: log, config: cfg }: ContainerCradle) =>
         new TemplateResolverService({
           gpmBackendUrl: cfg.gpmBackend.url,
-          internalApiKey: cfg.internalAuth.apiKey,
+          internalApiKey: cfg.gpmBackend.apiKey,
           logger: log,
         }),
     ).singleton(),
