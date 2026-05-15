@@ -12,3 +12,6 @@ dist/
 .env
 .env.qa
 !.env.example
+
+# Claude Code
+.claude/
