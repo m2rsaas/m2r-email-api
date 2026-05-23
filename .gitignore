@@ -18,3 +18,10 @@ dist/
 
 # Ruflo
 ruvector.db
+
+# Claude Code / AI tools — arquivos locais
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
+.mcp.json
