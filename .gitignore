@@ -3,4 +3,25 @@ dist/
 *.js
 *.d.ts
 *.js.map
+
+# Padrao .env M2RIA (skill padrao-env)
+
+# Padrao .env M2RIA (skill padrao-env)
+
+# Padrao .env M2RIA (skill padrao-env)
 .env
+.env.qa
+!.env.example
+
+# Claude Code
+.claude/
+
+# Ruflo
+ruvector.db
+
+# Claude Code / AI tools — arquivos locais
+.claude-flow/
+.swarm/
+agentdb.rvf
+agentdb.rvf.lock
+.mcp.json
