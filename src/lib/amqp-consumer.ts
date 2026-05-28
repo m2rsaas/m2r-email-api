@@ -10,6 +10,7 @@ export class AmqpConsumer implements IAmqpConsumer {
   private connection: ChannelModel | null = null;
   private channel: Channel | null = null;
   private consumerTag: string | null = null;
+  private handler: ConsumeHandler | null = null;
 
   constructor(
     private readonly url: string,
@@ -49,6 +50,7 @@ export class AmqpConsumer implements IAmqpConsumer {
       this.channel = null;
       this.connection = null;
       this.consumerTag = null;
+      this.scheduleReconnect(5000);
     });
     this.connection.on('error', (err) => {
       this.logger.error({ err: err.message }, 'AMQP consumer connection error');
@@ -66,7 +68,20 @@ export class AmqpConsumer implements IAmqpConsumer {
     );
   }
 
+  private scheduleReconnect(delayMs: number): void {
+    setTimeout(() => {
+      this.logger.info({ queue: this.opts.queue, delayMs }, 'Reconectando AMQP consumer...');
+      this.connect()
+        .then(() => (this.handler ? this.consume(this.handler) : Promise.resolve()))
+        .catch((err: unknown) => {
+          this.logger.error({ err, queue: this.opts.queue }, 'Falha ao reconectar; nova tentativa em breve');
+          this.scheduleReconnect(Math.min(delayMs * 2, 60_000));
+        });
+    }, delayMs);
+  }
+
   async consume(handler: ConsumeHandler): Promise<void> {
+    this.handler = handler;
     if (!this.channel) {
       throw new Error('AMQP consumer not connected');
     }
