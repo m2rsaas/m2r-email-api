@@ -87,7 +87,16 @@ export interface NodemailerConfig {
   password?: string;
   /** Alias retroativo (testes legados / configs antigas). */
   pass?: string;
-  fromEmail: string;
+  /** Remetente — nome canonico usado pelas integracoes GPM. */
+  fromEmail?: string;
+  /**
+   * Alias do remetente usado pelas integracoes de TENANT: o contrato SMTP
+   * grava o "from" na chave `from` (ver contracts INTEGRATION_SAFE_FIELDS.SMTP),
+   * enquanto o GPM grava `fromEmail`. Sem aceitar os dois, o `from` fica vazio
+   * e o MTA envia como `MAILER-DAEMON@MISSING_DOMAIN` -> o Gmail descarta
+   * silenciosamente. Mesma estrategia do alias `password ?? pass` acima.
+   */
+  from?: string;
   fromName?: string;
 }
 
@@ -119,9 +128,20 @@ export class NodemailerSender implements IEmailSender {
     const plainText =
       params.text && params.text.trim() ? params.text : htmlToPlainText(params.body);
 
+    // Remetente: aceita `fromEmail` (GPM) e `from` (tenant). Ver doc da interface.
+    // Sem isso o From vai vazio -> MAILER-DAEMON@MISSING_DOMAIN -> Gmail dropa.
+    const fromEmail = config.fromEmail ?? config.from;
+    if (!fromEmail) {
+      return {
+        success: false,
+        error: 'Integracao SMTP sem remetente (fromEmail/from). Configure o "From" na integracao.',
+        classification: 'hard',
+      };
+    }
+
     try {
       const info = await transporter.sendMail({
-        from: config.fromName ? `${config.fromName} <${config.fromEmail}>` : config.fromEmail,
+        from: config.fromName ? `${config.fromName} <${fromEmail}>` : fromEmail,
         to: params.to,
         cc: params.cc,
         bcc: params.bcc,
