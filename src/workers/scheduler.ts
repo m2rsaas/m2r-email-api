@@ -73,28 +73,30 @@ export class Scheduler {
     this.running = true;
     try {
       // Escopo GPM
-      // Inclui QUEUED como safety net: jobs persistidos (ex.: via REST ou
-      // pelo consumer AMQP) que por algum motivo nao tenham sido despachados
-      // imediatamente sao processados aqui. O `dispatch()` adquire lock via
-      // LWT (QUEUED -> SENDING), entao colisao com consumer e segura.
+      // Jobs QUEUED sao despachados pelo endpoint ou consumer que os criou.
+      // Nao os varremos aqui: a lookup e denormalizada e pode conter entradas
+      // antigas; reprocessa-las gera tentativas de lock em loop.
       const gpmIds = await this.jobRepo.listByStatus(
         'GPM',
         null,
-        ['SCHEDULED', 'RETRYING', 'QUEUED'],
+        ['SCHEDULED', 'RETRYING'],
         new Date(),
         this.options.batch,
       );
       for (const id of gpmIds) {
-        // Tenta promover (SCHEDULED|RETRYING -> QUEUED). Se o job ja estiver
-        // em QUEUED, o promote retorna false mas seguimos pro dispatch — o
-        // proprio dispatch adquire lock LWT (QUEUED -> SENDING), entao
-        // colisao com consumer AMQP e segura (apenas um vence o LWT).
-        await this.jobRepo
+        // A lookup pode conter uma linha antiga. So faz dispatch se uma das
+        // transicoes LWT venceu; caso contrario outro worker ja processou o
+        // job ou a entrada esta obsoleta.
+        const scheduledPromoted = await this.jobRepo
           .updateStatusIf('GPM', null, id, 'SCHEDULED', 'QUEUED')
           .catch(() => false);
-        await this.jobRepo
-          .updateStatusIf('GPM', null, id, 'RETRYING', 'QUEUED')
-          .catch(() => false);
+        const retryingPromoted = scheduledPromoted
+          ? false
+          : await this.jobRepo
+              .updateStatusIf('GPM', null, id, 'RETRYING', 'QUEUED')
+              .catch(() => false);
+        if (!scheduledPromoted && !retryingPromoted) continue;
+
         this.dispatch.dispatch('GPM', null, id).catch((err) =>
           this.logger.error(
             { id, err: (err as Error).message },
